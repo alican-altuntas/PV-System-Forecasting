@@ -9,8 +9,8 @@ Features:
     - Easy integration with energy management systems.
  Installation & Setup:
     1. Clone the Repository: Open your terminal and run:
-        git clone https://github.com/yourusername/pv-generation-forecasting.git
-        cd pv-generation-forecasting
+        git clone https://github.com/alican-altuntas/PV-System-Forecasting.git
+        cd PV-System-Forecasting
     2. Install Dependencies: Make sure Python is installed on your system. Then, install the required Python packages using:
         pip install -r requirements.txt
     3. Set Up the Dataset: Download the dataset from the provided link or use your own data. The data should contain the following columns:
