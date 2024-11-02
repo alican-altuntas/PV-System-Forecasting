@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from sklearn.model_selection import cross_val_score, KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import make_scorer, mean_squared_error
 from datetime import timedelta
-import matplotlib.pyplot as plt
 
 
 def e2109957_altuntas_GF(input_file_path, input_file_name, n_splits=5):
@@ -37,48 +37,53 @@ def e2109957_altuntas_GF(input_file_path, input_file_name, n_splits=5):
     print(f'Cross-Validation Mean Squared Error: {scores.mean()}')
     print(f'Cross-Validation Std Dev of Squared Error: {scores.std()}')
 
-    # Forecast power generation for the next 7 days (168 hours)
-    forecast_date = df['DATE'].max() + timedelta(days=1)
-    forecast_hours = pd.date_range(start=forecast_date, periods=168, freq='h')
-
-    # Prepare features for the forecast (last 24 hours of available data)
-    forecast_features = df[['TEMPERATURE (°C)', 'WIND SPEED (m/s)', 'SOLAR RADIATION (W/m2)', 'CLOUDNESS (%)']].tail(24)
-    forecast_features_scaled = scaler.transform(forecast_features)
-
-    # Fit model on the entire dataset for final prediction
+    # Fit the model on the full training data
     model.fit(X_scaled, y)
 
-    # Initialize a list to hold the forecast results
-    forecast = []
+    # Forecast power generation for the next 7 days (24 hours each day)
+    forecast_date = df['DATE'].max() + timedelta(days=1)
+    forecast_hours = pd.date_range(start=forecast_date, periods=7 * 24, freq='h')
 
-    for i in range(168):
-        # Make predictions for each hour in the forecast range
-        if i < len(forecast_features_scaled):
-            prediction = model.predict(forecast_features_scaled[i:i + 1])
+    # Prepare features for the forecast
+    last_24_hours_features = df[
+        ['TEMPERATURE (°C)', 'WIND SPEED (m/s)', 'SOLAR RADIATION (W/m2)', 'CLOUDNESS (%)']].tail(24)
+    last_24_hours_scaled = scaler.transform(last_24_hours_features)
+
+    # Prepare a DataFrame to hold the forecast values
+    forecast_values = []
+
+    # Iterate over the next 7 days (168 hours)
+    for hour in range(7 * 24):
+        if hour < len(last_24_hours_scaled):
+            prediction = model.predict(last_24_hours_scaled[hour].reshape(1, -1))
         else:
-            # For hours beyond the initial data, you may need to implement a method to predict the new features
-            # Here, we'll simply use the last available features for the next predictions
-            prediction = model.predict(forecast_features_scaled[-1].reshape(1, -1))
+            # Use the last available features for the next predictions
+            prediction = model.predict(last_24_hours_scaled[-1].reshape(1, -1))
 
-        # Set negative values in the forecast to zero
-        prediction[prediction < 0] = 0
-        forecast.append(prediction[0])
+        # Append the prediction, ensuring no negative values
+        forecast_values.append(max(prediction[0], 0))
 
-        # Update forecast features for the next prediction
-        forecast_features_scaled = np.append(forecast_features_scaled, prediction.reshape(1, -1), axis=0)[1:]
+        # Prepare the next input feature set for the model
+        # Instead of reshaping prediction to (1, -1), we need to create an array with the same shape as last_24_hours_scaled
+        new_features = np.array(
+            [[max(prediction[0], 0), 0, 0, 0]])  # Adjust according to the features (keep others as placeholders)
+
+        if hour < len(last_24_hours_scaled) - 1:
+            # Append the new features for the next prediction
+            last_24_hours_scaled = np.append(last_24_hours_scaled, new_features, axis=0)[1:]
 
     # Create a DataFrame for the forecast results
-    forecast_df = pd.DataFrame({'DATE': forecast_hours, 'POWER GENERATION (MW)': forecast})
+    forecast_df = pd.DataFrame({'DATE': forecast_hours, 'POWER GENERATION (MW)': forecast_values})
 
     # Set the date and time format
     forecast_df['DATE'] = forecast_df['DATE'].dt.strftime('%m/%d/%Y %H:%M')
 
-    # Plotting the forecast results
-    plt.figure(figsize=(14, 7))
+    # Plot the forecast
+    plt.figure(figsize=(12, 6))
     plt.plot(forecast_df['DATE'], forecast_df['POWER GENERATION (MW)'], marker='o', linestyle='-', color='b')
-    plt.title('7-Day Power Generation Forecast', fontsize=16)
-    plt.xlabel('Date and Time', fontsize=14)
-    plt.ylabel('Power Generation (MW)', fontsize=14)
+    plt.title('7-Day Power Generation Forecast')
+    plt.xlabel('Date and Time')
+    plt.ylabel('Power Generation (MW)')
     plt.xticks(rotation=45)
     plt.grid()
     plt.tight_layout()
